@@ -1,0 +1,10 @@
+pandas
+pydantic>=2.0
+pydantic-settings
+httpx
+SQLAlchemy>=2.0
+psycopg[binary]
+python-dotenv
+pytest
+pytest-cov
+ruff
