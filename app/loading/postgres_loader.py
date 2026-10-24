@@ -1,8 +1,7 @@
 import pandas as pd
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.loading.models import Customer
+from app.loading.repositories.customer_repository import upsert_customers
 
 
 def load_customers(
@@ -17,17 +16,8 @@ def load_customers(
         orient="records"
     )
 
-    statement = insert(Customer).values(records)
-    statement = statement.on_conflict_do_update(
-        index_elements=["email"],
-        set_={
-            "name": statement.excluded.name,
-            "age": statement.excluded.age,
-        },
-    )
-
     try:
-        session.execute(statement)
+        upsert_customers(session, records)
         session.commit()
     except Exception:
         session.rollback()
