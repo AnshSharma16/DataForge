@@ -254,12 +254,3 @@ DataForge follows these principles:
 - Observable pipeline execution.
 - Secure configuration and credential management.
 
-## Project Status
-
-**Status:** In development.
-
-Features listed in the roadmap represent planned work until implemented and tested. Performance measurements, deployment status, and reliability claims will be documented only after verification.
-
-## License
-
-Choose a license appropriate for your intended use. For an open-source release, an MIT License is one common option.
