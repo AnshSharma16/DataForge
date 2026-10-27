@@ -1,110 +1,114 @@
 # DataForge — Data Ingestion & Validation Pipeline
 
-A Python-based data engineering project for ingesting data from CSV files and REST APIs, validating schemas, transforming records, and loading reliable, structured data into PostgreSQL.
+DataForge is a modular Python ETL pipeline that ingests CSV data, cleans and validates records, separates invalid records for investigation, calculates data-quality metrics, and optionally loads valid customer records into PostgreSQL.
 
-## Overview
+The project demonstrates practical data engineering techniques, including schema validation, transactional database loading, conflict-aware upserts, structured logging, and automated testing.
 
-DataForge is designed to demonstrate practical data engineering and backend development principles through a modular, testable ETL pipeline. It focuses on data quality, reliable ingestion, database integrity, and failure recovery.
+## Key Features
 
-The pipeline separates ingestion, validation, transformation, loading, and reporting into independent components.
+- **CSV ingestion:** Read structured records from CSV files using Pandas.
+- **Data cleaning:** Trim whitespace and normalize email addresses.
+- **Schema validation:** Validate customer records using Pydantic, including field constraints and email validation.
+- **Invalid-record reporting:** Save invalid records and their validation errors to a CSV report.
+- **PostgreSQL loading:** Load valid customer records using SQLAlchemy.
+- **Conflict-aware upserts:** Insert new customers and update existing records based on email conflicts.
+- **Transaction handling:** Commit successful loads and roll back failed operations.
+- **Pipeline metrics:** Calculate total, valid, and invalid record counts and the validation success rate.
+- **Automated tests:** Test ingestion, transformations, validation, loading, reporting, pipeline behavior, and database integration.
 
 ## Architecture
 
 ```text
-CSV Files / REST APIs
-         |
-         v
-  Ingestion Layer
-         |
-         v
- Schema Validation
-         |
-         v
- Transformation & Cleaning
-         |
-         v
-  Deduplication
-         |
-         v
-   +-----+------+
-   |            |
-   v            v
-Valid Records  Invalid Records
-   |            |
-   v            v
-PostgreSQL   Quarantine Table
+CSV File
    |
    v
-Run History & Quality Reports
+CSV Ingestion
+   |
+   v
+Data Cleaning
+   |
+   v
+Pydantic Validation
+   |
+   +--------------------+
+   |                    |
+   v                    v
+Valid Records      Invalid Records
+   |                    |
+   |                    v
+   |             Invalid-record CSV
+   |
+   +---- If a database session is provided
+   |
+   v
+PostgreSQL Upsert
+   |
+   v
+Pipeline Metrics & Logs
 ```
 
-## Key Features
-
-- **Multi-source ingestion:** Read structured data from CSV files and REST APIs.
-- **Schema validation:** Validate required fields, data types, constraints, and malformed records.
-- **Data transformation:** Normalize values, parse dates, handle missing values, and standardize records.
-- **Deduplication:** Identify duplicate records using configurable business keys.
-- **Batch loading:** Load validated data into PostgreSQL using SQLAlchemy.
-- **Idempotent processing:** Design reruns to avoid duplicate records through unique constraints and upserts.
-- **Error handling:** Apply request timeouts, configurable retries, and structured error reporting.
-- **Data quarantine:** Preserve invalid records and their validation errors for investigation.
-- **Pipeline observability:** Track execution status, record counts, processing duration, and failures.
-- **Automated testing:** Test validation rules, transformations, duplicate handling, and database behavior.
-- **Continuous integration:** Run automated checks through GitHub Actions.
+The pipeline can also run without a database session. In that mode, it returns valid and invalid records and writes the invalid-record report without loading customers into PostgreSQL.
 
 ## Technology Stack
 
 | Technology | Purpose |
 |---|---|
 | Python | Pipeline implementation |
-| Pandas | Tabular data processing |
-| Pydantic | Schema and configuration validation |
-| HTTPX | REST API ingestion |
-| SQLAlchemy 2.x | Database access |
-| PostgreSQL | Persistent storage |
+| Pandas | CSV and tabular data processing |
+| Pydantic | Schema validation |
+| SQLAlchemy 2.x | Database access and ORM |
+| PostgreSQL | Persistent customer storage |
+| Psycopg | PostgreSQL driver |
 | pytest | Automated testing |
-| GitHub Actions | CI and quality checks |
+| pytest-cov | Test coverage reporting |
+| Ruff | Linting and import checks |
+| GitHub Actions | Continuous integration workflow |
 
 ## Project Structure
 
 ```text
-dataforge/
+DataForge/
 ├── app/
-│   ├── __init__.py
 │   ├── config.py
 │   ├── ingestion/
-│   │   ├── __init__.py
-│   │   ├── csv_reader.py
-│   │   └── api_client.py
-│   ├── validation/
-│   │   ├── __init__.py
-│   │   └── schemas.py
-│   ├── transformations/
-│   │   ├── __init__.py
-│   │   └── cleaning.py
+│   │   ├── api_client.py
+│   │   ├── base.py
+│   │   └── csv_reader.py
 │   ├── loading/
-│   │   ├── __init__.py
-│   │   └── postgres_loader.py
+│   │   ├── database.py
+│   │   ├── models.py
+│   │   ├── postgres_loader.py
+│   │   └── repositories/
+│   │       └── customer_repository.py
+│   ├── reporting/
+│   │   ├── invalid_records.py
+│   │   └── metrics.py
 │   ├── services/
-│   │   ├── __init__.py
 │   │   └── pipeline.py
-│   └── reporting/
-│       ├── __init__.py
-│       └── metrics.py
-├── tests/
-│   ├── test_ingestion.py
-│   ├── test_validation.py
-│   ├── test_transformations.py
-│   ├── test_loading.py
-│   └── test_pipeline.py
+│   ├── transformations/
+│   │   └── cleaning.py
+│   ├── validation/
+│   │   ├── schemas.py
+│   │   └── validator.py
+│   ├── utils/
+│   │   └── logging.py
+│   └── main.py
 ├── data/
 │   └── sample.csv
 ├── reports/
+├── tests/
+│   ├── test_ingestion.py
+│   ├── test_loading.py
+│   ├── test_metrics.py
+│   ├── test_pipeline.py
+│   ├── test_postgres_integration.py
+│   ├── test_reporting.py
+│   ├── test_transformations.py
+│   └── test_validation.py
 ├── .github/
 │   └── workflows/
 │       └── ci.yml
 ├── .env.example
-├── .gitignore
 ├── pyproject.toml
 ├── requirements.txt
 └── README.md
@@ -116,33 +120,31 @@ dataforge/
 
 - Python 3.12 or later
 - Git
-- A PostgreSQL database for database integration and end-to-end testing
+- PostgreSQL for database integration testing and database-backed pipeline execution
 
-Development can be performed in GitHub Codespaces or another cloud IDE without installing a local database server.
+The pipeline's CSV processing and unit tests can run without a live PostgreSQL database. PostgreSQL integration tests require a configured database.
 
 ### 1. Clone the repository
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd dataforge
+git clone https://github.com/AnshSharma16/DataForge.git
+cd DataForge
 ```
 
-### 2. Create a virtual environment
+### 2. Create and activate a virtual environment
+
+Linux or macOS:
 
 ```bash
 python -m venv .venv
+source .venv/bin/activate
 ```
 
-Activate it on Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
+python -m venv .venv
 .venv\Scripts\Activate.ps1
-```
-
-On Linux or macOS:
-
-```bash
-source .venv/bin/activate
 ```
 
 ### 3. Install dependencies
@@ -151,106 +153,117 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables
+### 4. Configure PostgreSQL
 
-Create a `.env` file based on `.env.example`.
+Create a local `.env` file using `.env.example` as a reference.
 
-Example:
+Set the database connection string:
 
-```env
+```dotenv
 DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DATABASE
-API_TIMEOUT_SECONDS=15
-MAX_RETRIES=3
-BATCH_SIZE=500
-LOG_LEVEL=INFO
 ```
 
-Replace the database placeholders with valid credentials. Never commit `.env` or real credentials to Git.
+Replace the placeholders with your actual PostgreSQL credentials. Never commit `.env` or expose database credentials.
 
-### 5. Run the tests
+## Running the Pipeline
+
+The pipeline is exposed through the `run_pipeline()` function in `app/services/pipeline.py`. There is currently no implemented command-line entry point.
+
+Example invocation from the repository root:
+
+```python
+from app.services.pipeline import run_pipeline
+
+valid_records, invalid_records = run_pipeline("data/sample.csv")
+
+print(f"Valid records: {len(valid_records)}")
+print(f"Invalid records: {len(invalid_records)}")
+```
+
+This processes the CSV, cleans and validates its records, saves invalid records to the report location, and returns the valid and invalid results.
+
+### Loading records into PostgreSQL
+
+To load valid records, create a database engine and session using the project's database helpers:
+
+```python
+from app.loading.database import (
+    create_database_engine,
+    create_session_factory,
+)
+from app.services.pipeline import run_pipeline
+
+engine = create_database_engine()
+
+try:
+    session_factory = create_session_factory(engine)
+
+    with session_factory() as session:
+        valid_records, invalid_records = run_pipeline(
+            "data/sample.csv",
+            session=session,
+        )
+finally:
+    engine.dispose()
+```
+
+The `customers` table must exist before loading. It can be created using the existing database helper:
+
+```python
+from app.loading.database import create_database_engine, create_tables
+
+engine = create_database_engine()
+
+try:
+    create_tables(engine)
+finally:
+    engine.dispose()
+```
+
+Run these examples from the repository root after installing the dependencies and configuring the environment.
+
+## Testing and Code Quality
+
+Run the full test suite:
 
 ```bash
 pytest -v
 ```
 
-The tests should run without a production database where suitable unit tests and mocks are used. Database integration tests require a configured test database.
+Run tests with coverage:
 
-## Pipeline Execution
+```bash
+pytest --cov=app --cov-report=term-missing
+```
 
-The intended execution sequence is:
+Check code quality with Ruff:
 
-1. Read records from the configured CSV file or REST API.
-2. Validate input fields and convert values to expected types.
-3. Transform and normalize valid records.
-4. Separate invalid records and capture their validation errors.
-5. Load valid records into PostgreSQL in batches.
-6. Record run metadata, row counts, failures, and processing duration.
-7. Generate a summary report.
+```bash
+ruff check .
+```
 
-A command-line entry point will be documented here once implemented.
+The latest recorded test run reported **25 passing tests and 97% overall coverage**. Results can change as the project evolves. PostgreSQL integration tests must be verified against a reachable database to confirm real database behavior.
 
-## Reliability and Data Quality
+## Current Scope and Future Improvements
 
-The project is designed to address common ingestion failures:
+The current implementation focuses on CSV-based customer ingestion, cleaning, validation, invalid-record reporting, metrics, logging, and optional PostgreSQL loading.
 
-- Missing or malformed input fields.
-- Duplicate records and repeated pipeline executions.
-- API timeouts and transient HTTP errors.
-- Invalid dates and inconsistent data types.
-- Database errors during batch loading.
-- Partial processing and failed pipeline runs.
+Potential future improvements include:
 
-Database constraints, transactional writes, bounded retries, and idempotent upserts should be used where appropriate. Retries should distinguish transient failures from permanent validation errors.
-
-## Testing Strategy
-
-The test suite should cover:
-
-- CSV parsing and malformed input.
-- REST API responses, timeouts, and retry behavior.
-- Schema validation and invalid-record quarantine.
-- Transformation correctness and deduplication.
-- Database inserts and upserts.
-- Idempotent reruns.
-- Transaction rollback and pipeline failure handling.
-- End-to-end execution against a test database.
-
-## Continuous Integration
-
-GitHub Actions will automate:
-
-- Dependency installation.
-- Code linting and formatting checks.
-- Unit tests.
-- Database integration tests where configured.
-- Build and configuration validation.
-
-The CI workflow should fail when required checks fail.
-
-## Roadmap
-
-- [ ] Implement CSV ingestion.
-- [ ] Implement REST API ingestion with HTTPX.
-- [ ] Add Pydantic schemas and validation rules.
-- [ ] Implement cleaning and transformation functions.
-- [ ] Add PostgreSQL models and database configuration.
-- [ ] Implement batch inserts and idempotent upserts.
-- [ ] Add invalid-record quarantine and run history.
-- [ ] Implement retry and timeout policies.
-- [ ] Add unit and integration tests.
-- [ ] Configure GitHub Actions CI.
-- [ ] Add benchmark results and sample data-quality reports.
-- [ ] Publish a reproducible end-to-end demonstration.
+- Implement and test REST API ingestion.
+- Add configurable retry policies for transient API failures.
+- Introduce batch-size configuration for larger datasets.
+- Add pipeline run-history persistence and processing-duration metrics.
+- Expand tests for failure paths and database transaction behavior.
+- Add a documented command-line entry point.
+- Publish reproducible sample runs and data-quality reports.
 
 ## Engineering Principles
 
-DataForge follows these principles:
-
-- Separation of concerns and modular design.
-- Explicit schema validation.
-- Deterministic and testable transformations.
-- Database integrity and transactional consistency.
-- Idempotent data loading.
-- Observable pipeline execution.
-- Secure configuration and credential management.
-
+- Separation of concerns through modular components.
+- Explicit schema validation and actionable error reporting.
+- Deterministic data transformations.
+- Transactional database writes.
+- Conflict-aware, repeatable data loading.
+- Secure environment-based configuration.
+- Automated tests and code-quality checks.
