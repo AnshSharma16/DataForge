@@ -2,7 +2,14 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from sqlalchemy import create_engine
 
+from app.loading.database import (
+    create_database_engine,
+    create_session_factory,
+    create_tables,
+)
+from app.loading.models import Base
 from app.loading.postgres_loader import load_customers
 
 
@@ -58,3 +65,50 @@ def test_load_customers_rolls_back_on_failure(monkeypatch):
 
     session.rollback.assert_called_once()
     session.commit.assert_not_called()
+
+
+def test_create_session_factory():
+    engine = create_engine("sqlite:///:memory:")
+
+    try:
+        session_factory = create_session_factory(engine)
+
+        assert session_factory.kw["bind"] is engine
+        assert session_factory.kw["autoflush"] is False
+        assert session_factory.kw["expire_on_commit"] is False
+    finally:
+        engine.dispose()
+
+
+def test_create_tables():
+    engine = create_engine("sqlite:///:memory:")
+
+    try:
+        create_tables(engine)
+
+        assert "customers" in Base.metadata.tables
+
+        from sqlalchemy import inspect
+
+        assert inspect(engine).has_table("customers")
+    finally:
+        engine.dispose()
+
+
+def test_create_database_engine(monkeypatch):
+    monkeypatch.setattr(
+        "app.loading.database.get_database_url",
+        lambda: "sqlite:///:memory:",
+    )
+
+    engine = create_database_engine()
+
+    try:
+        assert engine.pool._pre_ping is True
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("SELECT 1").scalar() == 1
+    finally:
+        engine.dispose()
+
+
+
